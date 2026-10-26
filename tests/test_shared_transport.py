@@ -75,7 +75,7 @@ def test_http_token_persists_and_has_private_permissions(tmp_path: Path) -> None
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
-def assert_windows_token_acl(path: Path) -> None:
+def assert_windows_token_acl(path: Path, *, directory: bool = False) -> None:
     if sys.platform == "win32":
         import ntsecuritycon
         import win32api
@@ -96,7 +96,12 @@ def assert_windows_token_acl(path: Path) -> None:
         dacl = descriptor.GetSecurityDescriptorDacl()
         assert dacl is not None and dacl.GetAceCount() == 1
         ace = dacl.GetAce(0)
-        assert ace[0] == (win32security.ACCESS_ALLOWED_ACE_TYPE, 0)
+        flags = (
+            win32security.OBJECT_INHERIT_ACE | win32security.CONTAINER_INHERIT_ACE
+            if directory
+            else 0
+        )
+        assert ace[0] == (win32security.ACCESS_ALLOWED_ACE_TYPE, flags)
         assert ace[1] == ntsecuritycon.FILE_ALL_ACCESS
         assert ace[2] == expected_sid
         assert descriptor.GetSecurityDescriptorControl()[0] & win32security.SE_DACL_PROTECTED
@@ -210,7 +215,7 @@ async def test_two_http_clients_share_cursors_and_only_daemon_owns_shutdown(
                     streamable_http_client(endpoint(settings), http_client=http), mode=second_mode
                 ) as second:
                     one, two = await asyncio.gather(first.list_tools(), second.list_tools())
-                    assert len(one.tools) == 14 and one.tools == two.tools
+                    assert len(one.tools) == 15 and one.tools == two.tools
                     page = await first.call_tool("get_history", {"chat_id": "1", "limit": 1})
                     assert page.structured_content is not None
                     cursor = page.structured_content["next_cursor"]
@@ -275,7 +280,7 @@ async def test_two_stdio_bridge_subprocesses_keep_daemon_alive(tmp_path: Path) -
         async with Client(command, mode="legacy") as first:
             async with Client(command, mode="auto") as second:
                 results = await asyncio.gather(first.list_tools(), second.list_tools())
-                assert len(results[0].tools) == len(results[1].tools) == 14
+                assert len(results[0].tools) == len(results[1].tools) == 15
                 page = await first.call_tool("get_messages", {"refs": ["1:1"]})
                 assert not page.is_error
                 assert not (await second.call_tool("get_status", {})).is_error
@@ -363,7 +368,7 @@ async def test_http_serializes_entire_tools_but_does_not_block_tool_discovery(
             active = asyncio.create_task(first.call_tool("get_status", {}))
             await entered.wait()
             queued = asyncio.create_task(second.call_tool("get_status", {}))
-            assert len((await second.list_tools()).tools) == 14
+            assert len((await second.list_tools()).tools) == 15
             await asyncio.sleep(0.02)
             assert calls == 1
             release.set()
