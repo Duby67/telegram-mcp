@@ -27,10 +27,11 @@ from telegram_mcp.application.ports import (
     Clock,
     CursorPort,
     ExecutionLimits,
+    FolderName,
     PolicyProvider,
     RuntimePort,
 )
-from telegram_mcp.application.progressive_search import ProgressiveSearchPager
+from telegram_mcp.application.progressive_search import ProgressivePager
 from telegram_mcp.application.queries import QueryService
 from telegram_mcp.application.query_preparation import QueryPreparation
 from telegram_mcp.application.topics import TopicPager, TopicService
@@ -81,6 +82,7 @@ class Service:
         self._runtime: RuntimePort = backend
         self._policies = policy_provider
         self._limits = limits
+        self._clock = clock
         self._archive = archive
         access = AccessFactory(backend, policy_provider)
         self._incremental = IncrementalContext(
@@ -99,7 +101,7 @@ class Service:
             preparation,
             MessagePager(backend, cursors, clock, limits),
             GlobalSearchPager(backend, cursors, clock, limits),
-            ProgressiveSearchPager(backend, cursors, clock, limits),
+            ProgressivePager(backend, cursors, clock, limits),
         )
         self._topics = TopicService(
             backend, access, cursors, clock, TopicPager(backend, cursors, clock)
@@ -133,10 +135,20 @@ class Service:
     async def list_watches(self) -> WatchList:
         return await self._watches.list()
 
+    def now(self) -> datetime:
+        """The injected current time, captured once per prompt rendering."""
+        return self._clock.utc_now()
+
+    async def find_folder(self, title: str) -> FolderName:
+        return await self._catalog.find_folder(title)
+
+    def watch_name_suggestions(self, prefix: str) -> list[str]:
+        return self._watches.name_suggestions(prefix)
+
     async def get_watch_changes(
-        self, name: str, limit: int = 30, ack_batch_id: str | None = None
+        self, name: str, limit: int = 30, ack_batch_id: str | None = None, save: bool = False
     ) -> WatchChangesResult:
-        return await self._watches.changes(name, limit, ack_batch_id)
+        return await self._watches.changes(name, limit, ack_batch_id, save)
 
     async def ack_watch_changes(self, name: str, batch_id: str) -> WatchAcknowledgement:
         return await self._watches.acknowledge(name, batch_id)
@@ -230,6 +242,11 @@ class Service:
         cursor: str | None = None,
         chat_ref: str | None = None,
         topic_id: int | None = None,
+        chat_ids: list[str] | None = None,
+        folder_ids: list[int] | None = None,
+        ordering: Literal["page", "global"] | None = None,
+        max_sources: int | None = None,
+        max_messages: int | None = None,
     ) -> Page:
         return await self._queries.get_history(
             chat_id=chat_id,
@@ -240,6 +257,11 @@ class Service:
             cursor=cursor,
             chat_ref=chat_ref,
             topic_id=topic_id,
+            chat_ids=chat_ids,
+            folder_ids=folder_ids,
+            ordering=ordering,
+            max_sources=max_sources,
+            max_messages=max_messages,
         )
 
     async def get_pinned_messages(

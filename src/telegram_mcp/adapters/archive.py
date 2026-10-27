@@ -10,6 +10,7 @@ import shutil
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 
@@ -17,6 +18,64 @@ from telegram_mcp.adapters.private_paths import prepare_private_directory, prote
 from telegram_mcp.application.ports import Clock
 from telegram_mcp.domain.archiving import ArchiveSource
 from telegram_mcp.domain.models import SavedFile, ToolError
+
+_KEY = re.compile(r"[A-Za-z0-9_-]{43}")
+_MAX_BYTES = 20 * 1024 * 1024
+_MAX_METADATA_BYTES = 1024 * 1024
+_MANIFEST_KEYS = {
+    "schema_version",
+    "file",
+    "source",
+    "original_name",
+    "mime_type",
+    "size",
+    "sha256",
+    "saved_at",
+}
+
+
+def _read_bounded(path: Path) -> bytes:
+    with path.open("rb") as stream:
+        data = stream.read(_MAX_BYTES + 1)
+    if len(data) > _MAX_BYTES:
+        raise OSError("Archived copy exceeds the file bound")
+    return data
+
+
+def _checked_copy(path: Path, *, sha256: str, source: ArchiveSource | None) -> SavedFile:
+    """Validate one published file and its sidecar; raise OSError/ValueError/TypeError."""
+    metadata = path.parent / "metadata.json"
+    if path.parent.is_symlink() or path.is_symlink() or metadata.is_symlink():
+        raise OSError("Redirected copy")
+    if len(metadata.read_bytes()) > _MAX_METADATA_BYTES:
+        raise ValueError("Oversized metadata")
+    manifest = json.loads(metadata.read_text(encoding="utf-8"))
+    data = _read_bounded(path)
+    if not isinstance(manifest, dict) or set(manifest) != _MANIFEST_KEYS:
+        raise ValueError("Invalid metadata fields")
+    recorded = ArchiveSource.model_validate(manifest["source"])
+    if (
+        manifest["schema_version"] != 1
+        or manifest["file"] != path.name
+        or not isinstance(manifest["original_name"], str)
+        or not isinstance(manifest["mime_type"], str)
+        or type(manifest["size"]) is not int
+        or manifest["size"] != len(data)
+        or manifest["sha256"] != sha256
+        or hashlib.sha256(data).hexdigest() != sha256
+        or (source is not None and recorded != source)
+    ):
+        raise ValueError("Metadata does not describe this copy")
+    saved_at = datetime.fromisoformat(manifest["saved_at"])
+    if saved_at.utcoffset() is None:
+        raise ValueError("Naive save time")
+    return SavedFile(
+        local_path=str(path),
+        metadata_path=str(metadata),
+        size=len(data),
+        sha256=sha256,
+        saved_at=saved_at,
+    )
 
 
 class ArchiveStore:
@@ -77,25 +136,52 @@ class ArchiveStore:
         return future.result()
 
     async def save(
-        self, data: bytes, name: str, sha256: str, *, mime_type: str, source: ArchiveSource
+        self,
+        data: bytes,
+        name: str,
+        sha256: str,
+        *,
+        mime_type: str,
+        source: ArchiveSource,
+        key: str | None = None,
     ) -> SavedFile:
         return await self._run(
-            partial(self._save, data, name, sha256, mime_type, source), self._discard
+            partial(self._save, data, name, sha256, mime_type, source, key), self._discard
         )
 
     def _save(
-        self, data: bytes, name: str, sha256: str, mime_type: str, source: ArchiveSource
+        self,
+        data: bytes,
+        name: str,
+        sha256: str,
+        mime_type: str,
+        source: ArchiveSource,
+        key: str | None = None,
     ) -> SavedFile:
         self.require_enabled()
         assert self.root is not None
         if len(data) > 20 * 1024 * 1024 or hashlib.sha256(data).hexdigest() != sha256:
             raise ToolError("ARCHIVE_STORAGE_ERROR", "File size or checksum is inconsistent.")
+        if key is not None and not _KEY.fullmatch(key):
+            raise ToolError("ARCHIVE_STORAGE_ERROR", "Invalid archive key.")
         suffix = Path(name).suffix.lower()
         if not re.fullmatch(r"\.[a-z0-9]{1,12}", suffix):
             suffix = ".bin"
-        directory = self.root / secrets.token_urlsafe(32)
+        directory = self.root / (key or secrets.token_urlsafe(32))
         staging = self.root / ("." + directory.name + ".part")
         path = directory / ("file" + suffix)
+        if key is not None:
+            try:
+                if directory.exists() or directory.is_symlink():
+                    # A previous attempt published this key before its receipt was recorded.
+                    return self._existing(path, sha256, source)
+                if staging.exists() and not staging.is_symlink():
+                    # Only this key's interrupted, never-published attempt can own it.
+                    shutil.rmtree(staging)
+            except OSError:
+                raise ToolError(
+                    "ARCHIVE_STORAGE_ERROR", "Cannot inspect the permanent copy location."
+                ) from None
         saved_at = self.clock.utc_now()
         metadata = json.dumps(
             {
@@ -144,6 +230,29 @@ class ArchiveStore:
                 "Cannot save the permanent copy; check archive_directory permissions "
                 "and disk space.",
             ) from None
+
+    def _existing(self, path: Path, sha256: str, source: ArchiveSource) -> SavedFile:
+        try:
+            return _checked_copy(path, sha256=sha256, source=source)
+        except (OSError, ValueError, TypeError):
+            raise ToolError(
+                "ARCHIVE_COPY_INVALID",
+                "The reserved permanent copy is missing, damaged or different.",
+            ) from None
+
+    async def verify(self, saved: SavedFile, source: ArchiveSource | None = None) -> bool:
+        return await self._run(partial(self._verify, saved, source))
+
+    @staticmethod
+    def _verify(saved: SavedFile, source: ArchiveSource | None = None) -> bool:
+        path = Path(saved.local_path)
+        if Path(saved.metadata_path) != path.parent / "metadata.json":
+            return False
+        try:
+            found = _checked_copy(path, sha256=saved.sha256, source=source)
+        except (OSError, ValueError, TypeError):
+            return False
+        return found == saved
 
     async def discard(self, saved: SavedFile) -> None:
         """Roll back only the copy created by an unsuccessful tool invocation."""
