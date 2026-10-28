@@ -14,7 +14,7 @@ from pydantic import Field, SecretStr, ValidationError, field_validator
 
 from telegram_mcp.domain.models import Model, ToolError
 from telegram_mcp.domain.periods import load_zone
-from telegram_mcp.domain.policy import SERVICE_NOTIFICATIONS_ID, ReadPolicy
+from telegram_mcp.domain.policy import PROTECTED_CHAT_IDS, ReadPolicy
 
 
 class Settings(Model):
@@ -55,11 +55,11 @@ class Settings(Model):
 
     @field_validator("allowed_chat_ids")
     @classmethod
-    def refuse_service_notifications(cls, value: list[str]) -> list[str]:
-        if SERVICE_NOTIFICATIONS_ID in value:
+    def refuse_service_chats(cls, value: list[str]) -> list[str]:
+        if refused := sorted(PROTECTED_CHAT_IDS.intersection(value)):
             raise ValueError(
-                f"remove {SERVICE_NOTIFICATIONS_ID}; Telegram service notifications contain "
-                "login codes and are never readable"
+                f"remove {', '.join(refused)}; Telegram service chats deliver login or "
+                "verification codes and are never readable"
             )
         return value
 

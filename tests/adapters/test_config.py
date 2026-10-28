@@ -102,9 +102,10 @@ def test_prompt_timezone_defaults_to_utc_and_rejects_unknown_zones(tmp_path: Pat
             Settings(timezone=value)
 
 
-def test_service_notifications_cannot_be_allowlisted(tmp_path: Path) -> None:
+@pytest.mark.parametrize("chat_id", ["777000", "489000"])
+def test_service_chats_cannot_be_allowlisted(tmp_path: Path, chat_id: str) -> None:
     path = tmp_path / "config.toml"
-    path.write_text('allowed_chat_ids = ["1", "777000"]\n', encoding="utf-8")
+    path.write_text(f'allowed_chat_ids = ["1", "{chat_id}"]\n', encoding="utf-8")
     with pytest.raises(ToolError, match="INVALID_CONFIGURATION") as error:
         load_settings(path)
-    assert "777000" in error.value.detail
+    assert chat_id in error.value.detail
