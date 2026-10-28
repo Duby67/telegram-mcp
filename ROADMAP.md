@@ -36,13 +36,30 @@ Publication of 0.5.0 was verified on
 The [0.4 migration guide](docs/migration-0.4.md) applies to upgrades from 0.3;
 [0.4](docs/validation-0.4.md) and [0.3](docs/validation-0.3.md) retain earlier validation.
 
-## Security follow-up (unreleased)
+## 0.5.1: security patch (prepared)
 
-Service-notification access now checks canonical ASCII chat IDs before any grant,
+Telegram's service-notification chat `777000` delivers login codes. In 0.5.0,
+all-chat access or a selected folder containing it made it readable. 0.5.1 excludes
+it from all-chat and folder access, denies explicit, monitoring, export and download
+requests with `ACCESS_DENIED`, and rejects allowlisting it. The fix was contributed in
+[#34](https://github.com/egor-fedorov/telegram-mcp/pull/34) and ported onto R6 in
+[#59](https://github.com/egor-fedorov/telegram-mcp/pull/59). The patch also ships R6;
+tools, schemas and persisted state are unchanged. The
+[0.5.1 validation record](docs/validation-0.5.1.md) tracks offline and selected-source
+checks; publication remains pending under the [release procedure](docs/releasing.md).
+The follow-up in [#62](https://github.com/egor-fedorov/telegram-mcp/pull/62)
+checks canonical ASCII chat IDs before any grant,
 closing a Unicode-digit alias bypass. Configuration rejects noncanonical allowlist
 IDs. Regression tests exercise message and context reads through both MCP modes and
 the real Telegram adapter with synthetic responses, asserting no entity or message
 read occurs for a rejected ID. No live service-notification content is used.
+
+Selected-source validation passed on 2026-10-28: history/search, messages/context,
+album, photo and document/video downloads, checkpoints and exports, owned-client
+reconnect, selected peer metadata, and saved-watch replay/acknowledgement after
+reopening the service and stores. Offline `make check` passes 1478 tests with two
+platform-specific skips. The validation record lists bounds and untested live paths;
+publication remains a separate step.
 
 ## R6: structural consolidation (done)
 
