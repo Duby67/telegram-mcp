@@ -2,8 +2,11 @@
 
 from dataclasses import dataclass
 
-# Telegram's service-notification account delivers login codes; it is never readable.
+# Telegram's service-notification account delivers login codes, and its Verification Codes
+# account delivers third-party verification codes; neither is ever readable.
 SERVICE_NOTIFICATIONS_ID = "777000"
+VERIFICATION_CODES_ID = "489000"
+PROTECTED_CHAT_IDS = frozenset({SERVICE_NOTIFICATIONS_ID, VERIFICATION_CODES_ID})
 
 
 @dataclass(frozen=True)

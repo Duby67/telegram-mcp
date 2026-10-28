@@ -105,11 +105,14 @@ def test_unread_mentions_and_community_rules() -> None:
     assert not contains(folder, chat)
 
 
-def test_service_notifications_are_never_allowed() -> None:
+def test_code_delivery_chats_are_never_allowed() -> None:
     chats = [
         Chat(id="1", title="one", type="private"),
         Chat(id="777000", title="Telegram", type="private"),
+        Chat(id="489000", title="Verification Codes", type="private"),
     ]
-    folders = [Folder(id=1, title="All", position=0, included_chat_ids=["1", "777000"])]
+    folders = [Folder(id=1, title="All", position=0, included_chat_ids=["1", "777000", "489000"])]
     assert allowed_ids(ReadPolicy(allow_all_chats=True), chats, folders) == {"1"}
     assert allowed_ids(ReadPolicy(allowed_folder_ids=(1,)), chats, folders) == {"1"}
+    explicit = ReadPolicy(allowed_chat_ids=("1", "489000"))
+    assert allowed_ids(explicit, chats, folders) == {"1"}
