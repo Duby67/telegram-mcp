@@ -15,6 +15,10 @@ A version entry describes its target artifact. Verify publication on
   export or download requests return `ACCESS_DENIED`, and configuration that
   allowlists them is rejected. Previously `allow_all_chats` or a folder containing
   this chat let a prompt-injected agent read a login code.
+- The Verification Codes chat (`489000`), through which Telegram Gateway delivers
+  verification codes for other services, is protected the same way. Previously
+  `allow_all_chats`, a folder or `allowed_chat_ids` let a prompt-injected agent read
+  these codes.
 
 ### Development
 
