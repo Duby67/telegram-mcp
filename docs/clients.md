@@ -13,7 +13,7 @@ to start the shared server at login. Each client below launches a STDIO `connect
 profile; no Telegram credentials or HTTP token belong in these client configurations.
 It never starts the HTTP server automatically.
 
-The examples target package version 0.5.1 and Python 3.12 through `uvx`. Check
+The examples target package version 0.6.0 and Python 3.12 through `uvx`. Check
 [PyPI](https://pypi.org/project/telegram-context-mcp/) for published versions. For an
 unreleased revision, use an absolute executable path from a [source checkout](../README.md#run-from-source),
 with `args = ["connect"]` or its JSON equivalent. A persistent `uv tool install`
@@ -39,14 +39,15 @@ Merge this table into your existing `~/.codex/config.toml`, preserving other set
 ```toml
 [mcp_servers.telegram]
 command = "uvx"
-args = ["--python", "3.12", "--from", "telegram-context-mcp==0.5.1", "telegram-mcp", "connect"]
+args = ["--python", "3.12", "--from", "telegram-context-mcp==0.6.0", "telegram-mcp", "connect"]
 startup_timeout_sec = 20
 tool_timeout_sec = 120
 enabled_tools = [
   "get_status", "list_folders", "list_chats", "get_chat", "search_messages",
   "get_history", "get_messages", "get_album", "get_context", "get_thread",
   "search_public_channels", "get_similar_channels", "list_topics", "get_pinned_messages",
-  "download_attachment", "get_changes", "export_history", "create_watch", "list_watches",
+  "download_attachment", "extract_attachment_text", "get_changes", "export_history",
+  "create_watch", "list_watches",
   "get_watch_changes", "ack_watch_changes", "delete_watch"
 ]
 ```
@@ -71,7 +72,7 @@ Open Settings → Developer → Edit Config and merge this `mcpServers` entry in
   "mcpServers": {
     "telegram": {
       "command": "uvx",
-      "args": ["--python", "3.12", "--from", "telegram-context-mcp==0.5.1", "telegram-mcp", "connect"]
+      "args": ["--python", "3.12", "--from", "telegram-context-mcp==0.6.0", "telegram-mcp", "connect"]
     }
   }
 }
@@ -87,7 +88,7 @@ Use the file opened by the app; the standard locations include
 Add the proxy in user scope so it is available across your projects:
 
 ```sh
-claude mcp add --transport stdio --scope user telegram -- uvx --python 3.12 --from telegram-context-mcp==0.5.1 telegram-mcp connect
+claude mcp add --transport stdio --scope user telegram -- uvx --python 3.12 --from telegram-context-mcp==0.6.0 telegram-mcp connect
 claude mcp get telegram
 ```
 
@@ -101,7 +102,7 @@ the configuration is:
     "telegram": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["--python", "3.12", "--from", "telegram-context-mcp==0.5.1", "telegram-mcp", "connect"]
+      "args": ["--python", "3.12", "--from", "telegram-context-mcp==0.6.0", "telegram-mcp", "connect"]
     }
   }
 }
@@ -121,7 +122,7 @@ Cursor also supports project-local `.cursor/mcp.json`.
   "mcpServers": {
     "telegram": {
       "command": "uvx",
-      "args": ["--python", "3.12", "--from", "telegram-context-mcp==0.5.1", "telegram-mcp", "connect"]
+      "args": ["--python", "3.12", "--from", "telegram-context-mcp==0.6.0", "telegram-mcp", "connect"]
     }
   }
 }
@@ -138,7 +139,7 @@ Use the current guided setup for the selected agent harness:
 2. Choose **Command (stdio)** and enter:
 
    ```sh
-   uvx --python 3.12 --from telegram-context-mcp==0.5.1 telegram-mcp connect
+   uvx --python 3.12 --from telegram-context-mcp==0.6.0 telegram-mcp connect
    ```
 
 3. Name the server `telegram`. For a personal Copilot setup, choose **Global**, then
@@ -161,7 +162,7 @@ use its `servers` format instead. It is distinct from the portable Copilot forma
     "telegram": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["--python", "3.12", "--from", "telegram-context-mcp==0.5.1", "telegram-mcp", "connect"]
+      "args": ["--python", "3.12", "--from", "telegram-context-mcp==0.6.0", "telegram-mcp", "connect"]
     }
   }
 }
@@ -177,7 +178,7 @@ For one client, stop the shared HTTP server and change the final `connect` argum
 to `serve` in that client's configuration. The complete command becomes:
 
 ```sh
-uvx --python 3.12 --from telegram-context-mcp==0.5.1 telegram-mcp serve
+uvx --python 3.12 --from telegram-context-mcp==0.6.0 telegram-mcp serve
 ```
 
 The client now starts and owns a standalone STDIO server. Do not start another
@@ -310,7 +311,7 @@ For a custom configuration, insert `--config` and its absolute path after
 `telegram-mcp` and before `connect` or `serve`:
 
 ```json
-["--python", "3.12", "--from", "telegram-context-mcp==0.5.1", "telegram-mcp", "--config", "/absolute/private/config.toml", "connect"]
+["--python", "3.12", "--from", "telegram-context-mcp==0.6.0", "telegram-mcp", "--config", "/absolute/private/config.toml", "connect"]
 ```
 
 Run the HTTP server with that same configuration. All clients share its account,
